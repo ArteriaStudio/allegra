@@ -8,5 +8,12 @@
 #define PCH_H
 
 #define		WIN32_LEAN_AND_MEAN
+#include	<Windows.h>
+
+#include	<assert.h>
+
+#include	<string>
+#include	<vector>
+#include	<format>
 
 #endif //PCH_H
