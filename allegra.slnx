@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="wrk/allegra/allegra.vcxproj" Id="dcfd5d58-2db2-4157-98c1-c9b49df03be5" />
+</Solution>
