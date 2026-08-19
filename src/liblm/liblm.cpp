@@ -27,7 +27,7 @@ CLlama::~CLlama()
 int
 CLlama::Initialize()
 {
-	::llama_log_set(log_callback_null, nullptr);
+//	::llama_log_set(log_callback_null, nullptr);
 
 	::llama_backend_init();
 
@@ -64,14 +64,13 @@ CCtrlLLM::~CCtrlLLM()
 
 //　
 int
-CCtrlLLM::Create()
+CCtrlLLM::Create(std::string pModelFilepath)
 {
 	//　モデルをロード
-	std::string model_path = "D:\\Home\\Assets\\Models\\LLM\\gemma-4-gguf-gemma-4-e4b-it-qat-q4_0-gguf-v2\\gemma-4-E4B_q4_0-it.gguf"; // 使用するGGUFモデルのパス
 	llama_model_params model_params = llama_model_default_params();
 	model_params.n_gpu_layers = 99; // GPUにオフロードするレイヤー数 (0でCPUのみ)
 
-	m_pModel = ::llama_model_load_from_file(model_path.c_str(), model_params);
+	m_pModel = ::llama_model_load_from_file(pModelFilepath.c_str(), model_params);
 	if (!m_pModel) {
 		return((int)ECtrlLM::FailedLoadModel);
 	}
@@ -173,6 +172,55 @@ CChatTemplate::ApplyGemmaFormat(VChatMessages & pMessages, std::string & pPrompt
 }
 #endif
 
+int32_t
+CChatTemplate::ApplyPhi3Format(VChatMessages & pMessages, std::u8string & pPrompt, bool add_generation_prompt)
+{
+	for (const auto & msg : pMessages) {
+		auto role_tag = msg.pRole;
+
+		if (role_tag.compare(u8"system") == 0) {
+			pPrompt += u8"<|system|>\n";
+			pPrompt += msg.pContent;
+			pPrompt += u8"<|end|>\n";
+		} else if (role_tag.compare(u8"user") == 0) {
+			pPrompt += u8"<|user|>\n";
+			pPrompt += msg.pContent;
+			pPrompt += u8"<|end|>\n";
+		} else if (role_tag.compare(u8"assistant") == 0) {
+			pPrompt += u8"<|assistant|>\n";
+			pPrompt += msg.pContent;
+			pPrompt += u8"<|end|>\n";
+		}
+	}
+	
+	if (add_generation_prompt) {
+		pPrompt += u8"<|assistant|>\n";
+	}
+	
+
+	return((int32_t)pPrompt.length());
+}
+
+int32_t
+CChatTemplate::ApplyFormat(VChatMessages & pMessages, std::u8string & pPrompt, bool add_generation_prompt)
+{
+	for (const auto & msg : pMessages) {
+		auto role_tag = msg.pRole;
+
+		pPrompt += u8"<|im_start|>" + role_tag + u8"<|im_sep|>\n";
+		pPrompt += msg.pContent;
+		pPrompt += u8"<|im_end|>\n";
+	}
+
+	
+	if (add_generation_prompt) {
+		pPrompt += u8"<|im_start|>assistant<|im_sep|>\n";
+	}
+	
+
+	return((int32_t)pPrompt.length());
+}
+
 //　Generate by Gemini3.7 Flash
 //　Refactoring manual.
 int32_t
@@ -254,10 +302,10 @@ CChatTemplate::Apply(CCtrlLLM * pLLM, VChatMessages & pMessages, std::u8string &
 	int32_t 	nPrompt = 0;
 	if (pArch.compare("gemma4") == 0) {
 		nPrompt = ApplyGemmaFormat(pMessages, pPrompt, add_generation_prompt);
-		/*
-		auto pText = std::format(L"{}\n", pPrompt.c_str());
-		::OutputDebugStringW(pText.c_str());
-		*/
+	} else if (pArch.compare("phi3") == 0) {
+		nPrompt = ApplyPhi3Format(pMessages, pPrompt, add_generation_prompt);
+	} else {
+		nPrompt = ApplyFormat(pMessages, pPrompt, add_generation_prompt);
 	}
 
 	return(nPrompt);
@@ -274,12 +322,12 @@ CLLMContext::Sample(VChatMessagesA & pMessagesA)
 		std::u8string	pOutText;
 		::SJIStoUTF8(pMessageA.pRole.size(), pMessageA.pRole.c_str(), pOutText);
 		size_t	nUTF8Text = pOutText.length();
-		pMessage.pRole.resize(nUTF8Text + 1);
+		pMessage.pRole.resize(nUTF8Text);
 		memcpy(pMessage.pRole.data(), pOutText.data(), nUTF8Text);
 
 		::SJIStoUTF8(pMessageA.pContent.size(), pMessageA.pContent.c_str(), pOutText);
 		nUTF8Text = pOutText.length();
-		pMessage.pContent.resize(nUTF8Text + 1);
+		pMessage.pContent.resize(nUTF8Text);
 		memcpy(pMessage.pContent.data(), pOutText.data(), nUTF8Text);
 
 		pMessages.push_back(pMessage);
@@ -299,12 +347,12 @@ CLLMContext::Sample(VChatMessagesW & pMessagesW)
 		std::u8string	pOutText;
 		::UCS2toUTF8(pMessageW.pRole.size(), pMessageW.pRole.c_str(), pOutText);
 		size_t	nUTF8Text = pOutText.length();
-		pMessage.pRole.resize(nUTF8Text + 1);
+		pMessage.pRole.resize(nUTF8Text);
 		memcpy(pMessage.pRole.data(), pOutText.data(), nUTF8Text);
 
 		::UCS2toUTF8(pMessageW.pContent.size(), pMessageW.pContent.c_str(), pOutText);
 		nUTF8Text = pOutText.length();
-		pMessage.pContent.resize(nUTF8Text + 1);
+		pMessage.pContent.resize(nUTF8Text);
 		memcpy(pMessage.pContent.data(), pOutText.data(), nUTF8Text);
 
 		pMessages.push_back(pMessage);

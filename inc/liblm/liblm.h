@@ -60,7 +60,7 @@ public:
 	explicit CCtrlLLM();
 	virtual ~CCtrlLLM();
 
-	int 	Create();
+	int 	Create(std::string pModelFilepath);
 	void	Delete();
 
 	llama_model *	GetInterface(void);
@@ -94,6 +94,8 @@ class	CChatTemplate
 protected:
 //	static int32_t	ApplyGemmaFormat(VChatMessages & pMessages, std::string & pPrompt, bool add_generation_prompt);
 	static int32_t	ApplyGemmaFormat(VChatMessages & pMessages, std::u8string & pPrompt, bool add_generation_prompt);
+	static int32_t	ApplyPhi3Format(VChatMessages & pMessages, std::u8string & pPrompt, bool add_generation_prompt);
+	static int32_t	ApplyFormat(VChatMessages & pMessages, std::u8string & pPrompt, bool add_generation_prompt);
 
 public:
 	explicit CChatTemplate();
