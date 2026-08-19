@@ -148,7 +148,7 @@ CChatTemplate::~CChatTemplate()
 {
 }
 
-
+#ifdef ENABLE_ASCII_PARAMETER
 //　Generate by Gemini3.7 Flash
 int32_t
 CChatTemplate::ApplyGemmaFormat(VChatMessages & pMessages, std::string & pPrompt, bool add_generation_prompt)
@@ -171,10 +171,69 @@ CChatTemplate::ApplyGemmaFormat(VChatMessages & pMessages, std::string & pPrompt
 
 	return((int32_t)pPrompt.length());
 }
+#endif
 
+//　Generate by Gemini3.7 Flash
+//　Refactoring manual.
+int32_t
+CChatTemplate::ApplyGemmaFormat(VChatMessages & pMessages, std::u8string & pPrompt, bool add_generation_prompt)
+{
+	for (const auto & msg : pMessages) {
+		auto role_tag = msg.pRole;
+		// assistant を model に正規化
+		if (role_tag == u8"assistant") {
+			role_tag = u8"model";
+		}
+
+		pPrompt += u8"<|turn>" + role_tag + u8"\n";
+		pPrompt += msg.pContent;
+		pPrompt += u8"<turn|>\n";
+	}
+
+	if (add_generation_prompt) {
+		pPrompt += u8"<|turn>model\n";
+	}
+
+	return((int32_t)pPrompt.length());
+}
+
+#ifdef ENABLE_ASCII_PARAMETER
 //　
 int32_t
 CChatTemplate::Apply(CCtrlLLM * pLLM, VChatMessages & pMessages, std::string & pPrompt, bool add_generation_prompt)
+{
+	std::string 	pText;
+
+	pText.resize(256);
+
+	auto n0 = llama_model_desc(pLLM->GetInterface(), pText.data(), pText.capacity());
+	std::string 	pDesc(pText.data(), n0);
+
+	auto n1 = llama_model_meta_val_str(pLLM->GetInterface(), "general.architecture", pText.data(), pText.capacity());
+	std::string 	pArch(pText.data(), n1);
+
+	auto n2 = llama_model_meta_val_str(pLLM->GetInterface(), "general.name", pText.data(), pText.capacity());
+	std::string 	pName(pText.data(), n2);
+
+//	auto n3 = llama_model_meta_val_str(pLLM->GetInterface(), "general.basename", pText.data(), pText.capacity());
+//	pDesc = pText;
+
+	int32_t 	nPrompt = 0;
+	if (pArch.compare("gemma4") == 0) {
+		nPrompt = ApplyGemmaFormat(pMessages, pPrompt, add_generation_prompt);
+		/*
+		auto pText = std::format(L"{}\n", pPrompt.c_str());
+		::OutputDebugStringW(pText.c_str());
+		*/
+	}
+
+	return(nPrompt);
+}
+#endif
+
+//　
+int32_t
+CChatTemplate::Apply(CCtrlLLM * pLLM, VChatMessages & pMessages, std::u8string & pPrompt, bool add_generation_prompt)
 {
 	std::string 	pText;
 
@@ -258,10 +317,10 @@ CLLMContext::Sample(VChatMessagesW & pMessagesW)
 int
 CLLMContext::Sample(VChatMessages & pMessages)
 {
-	std::string		pPromptText;
+	std::u8string		pPromptText;
 	CChatTemplate::Apply(m_pLLM, pMessages, pPromptText);
 
-	const char *	pPrompt = pPromptText.data();
+	const char *	pPrompt = (const char *)pPromptText.data();
 	int32_t 		nPrompt = (int32_t)pPromptText.length();
 
 	//　プロンプト文字列をトークンに変換

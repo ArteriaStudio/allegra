@@ -12,8 +12,8 @@ enum class	ECtrlLM : int
 
 //　LLM 対話メッセージ
 struct	TChatMessage {
-	std::string	pRole;			//　役割（文字コード：UTF-8）
-	std::string	pContent;		//　本文（文字コード：UTF-8）
+	std::u8string	pRole;			//　役割（文字コード：UTF-8）
+	std::u8string	pContent;		//　本文（文字コード：UTF-8）
 };
 typedef std::vector<TChatMessage>	VChatMessages;
 
@@ -28,14 +28,6 @@ struct	TChatMessageW {
 	std::wstring	pContent;		//　本文（文字コード：UCS2）
 };
 typedef std::vector<TChatMessageW>	VChatMessagesW;
-
-/*
-struct	TChatMessageU8 {
-	std::u8string	pRole;			//　役割（文字コード：UTF-8）
-	std::u8string	pContent;		//　本文（文字コード：UTF-8）
-};
-typedef std::vector<TChatMessageU8> 	VChatMessagesU8;
-*/
 
 //　イベントリスナー
 class	ILLMListener
@@ -100,12 +92,14 @@ public:
 class	CChatTemplate
 {
 protected:
-	static int32_t	ApplyGemmaFormat(VChatMessages & pMessages, std::string & pPrompt, bool add_generation_prompt);
+//	static int32_t	ApplyGemmaFormat(VChatMessages & pMessages, std::string & pPrompt, bool add_generation_prompt);
+	static int32_t	ApplyGemmaFormat(VChatMessages & pMessages, std::u8string & pPrompt, bool add_generation_prompt);
 
 public:
 	explicit CChatTemplate();
 	virtual ~CChatTemplate();
 
-	static int32_t	Apply(CCtrlLLM * pLLM, VChatMessages & pMessages, std::string & pPrompt, bool add_generation_prompt=true);
+//	static int32_t	Apply(CCtrlLLM * pLLM, VChatMessages & pMessages, std::string & pPrompt, bool add_generation_prompt=true);
+	static int32_t	Apply(CCtrlLLM * pLLM, VChatMessages & pMessages, std::u8string & pPrompt, bool add_generation_prompt=true);
 };
 
