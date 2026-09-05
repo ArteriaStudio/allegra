@@ -1,6 +1,10 @@
 ﻿// LLM操作（liblm）
 #pragma 	once
+#include	<sstream>
+#include	<libax/AxThread.h>
+#include	<libax/AxEvent.h>
 #include	<llama.h>
+
 
 //　定数宣言
 enum class	ECtrlLM : int
@@ -9,6 +13,8 @@ enum class	ECtrlLM : int
 	FailedLoadModel,
 	FailedCreateModel,
 };
+
+using u8stringstream = std::basic_stringstream<char8_t>;
 
 //　LLM 対話メッセージ
 struct	TChatMessage {
@@ -33,21 +39,25 @@ typedef std::vector<TChatMessageW>	VChatMessagesW;
 class	ILLMListener
 {
 public:
-	virtual void	OnToken(const int32_t nText, const char * pText) = 0;
+	virtual void	OnResponse(const int32_t nText, const char8_t * pText) = 0;
+	virtual int 	OnProgress(float fProgress) = 0;
 };
 
 
 //　llama.cpp バックエンドラップ
 class	CLlama
 {
-protected:
-
-public:
+private:
 	explicit CLlama();
 	virtual ~CLlama();
 
+protected:
+
+public:
 	int 	Initialize();
 	void	Finalize();
+
+	static CLlama * 	GetInstance(void);
 };
 
 //　LLMモデル
@@ -60,7 +70,7 @@ public:
 	explicit CCtrlLLM();
 	virtual ~CCtrlLLM();
 
-	int 	Create(std::string pModelFilepath);
+	int 	Create(const char * pModelFilepath, ILLMListener * pListener);
 	void	Delete();
 
 	llama_model *	GetInterface(void);
@@ -75,6 +85,8 @@ private:
 protected:
 	llama_context * 	m_pContext;
 	CCtrlLLM *	m_pLLM;
+
+	void	OnResponse(u8stringstream & pStream, const int32_t nText, const char8_t * pText);
 
 public:
 	explicit CLLMContext();
@@ -105,3 +117,34 @@ public:
 	static int32_t	Apply(CCtrlLLM * pLLM, VChatMessages & pMessages, std::u8string & pPrompt, bool add_generation_prompt=true);
 };
 
+//　LLM ワーカースレッド
+class	CLxLLMWorker : private CAxThread
+{
+private:
+	CAxEvent	m_pShutdown;	//　スレッド停止イベント
+	CAxEvent	m_pEventEnd;	//　スレッド停止完了イベント
+
+	ILLMListener *	m_pListener;
+
+//	void	OnToken(const int32_t nText, const char8_t * pText);
+
+protected:
+	CCtrlLLM		m_pLLM;
+	CLLMContext 	m_pContext;
+	std::string 	m_pModelFilepath;
+
+	uint32_t	Main(void);
+
+public:
+	explicit CLxLLMWorker();
+	virtual ~CLxLLMWorker();
+
+	int 	Create(const char * pFilepath, ILLMListener * pListener);
+	void	Delete();
+
+	int 	WaitForEndWorker();
+	int 	Shutdown(void);
+
+//	virtual void	OnResponse(const int32_t nText, const char8_t * pText) = 0;
+//	virtual int 	OnProgress(float fValue) = 0;
+};

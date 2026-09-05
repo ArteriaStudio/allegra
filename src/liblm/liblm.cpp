@@ -5,7 +5,8 @@
 #include	"liblm/liblm.h"
 
 //　関数プロトタイプ
-static void 	log_callback_null(ggml_log_level level, const char* text, void* user_data);
+static void 	log_callback_null(ggml_log_level level, const char * text, void * user_data);
+static bool 	model_load_progress_callback(float fProgress, void * user_data);
 
 //　インポートライブラリ
 #pragma comment(lib, "ggml.lib")
@@ -14,6 +15,8 @@ static void 	log_callback_null(ggml_log_level level, const char* text, void* use
 #pragma comment(lib, "ggml-vulkan.lib")
 #pragma comment(lib, "D:/App/Vulkan/lib/vulkan-1.lib")
 #pragma comment(lib, "llama.lib")
+
+
 
 CLlama::CLlama()
 {
@@ -44,6 +47,15 @@ CLlama::Finalize()
 	return;
 }
 
+CLlama *
+CLlama::GetInstance(void)
+{
+static CLlama	pInstance;
+
+	return(&pInstance);
+}
+
+
 static void
 log_callback_null(ggml_log_level level, const char* text, void* user_data) {
 	(void)level;
@@ -64,13 +76,18 @@ CCtrlLLM::~CCtrlLLM()
 
 //　
 int
-CCtrlLLM::Create(std::string pModelFilepath)
+CCtrlLLM::Create(const char * pModelFilepath, ILLMListener * pListener)
 {
 	//　モデルをロード
-	llama_model_params model_params = llama_model_default_params();
+	llama_model_params	model_params = llama_model_default_params();
+	model_params.progress_callback = model_load_progress_callback;
+	model_params.progress_callback_user_data = pListener;
+//	model_params.n_gpu_layers = 0; // GPUにオフロードするレイヤー数 (0でCPUのみ)
 	model_params.n_gpu_layers = 99; // GPUにオフロードするレイヤー数 (0でCPUのみ)
+	model_params.load_mode = LLAMA_LOAD_MODE_DIRECT_IO;
+	model_params.check_tensors = false;
 
-	m_pModel = ::llama_model_load_from_file(pModelFilepath.c_str(), model_params);
+	m_pModel = ::llama_model_load_from_file(pModelFilepath, model_params);
 	if (!m_pModel) {
 		return((int)ECtrlLM::FailedLoadModel);
 	}
@@ -311,6 +328,7 @@ CChatTemplate::Apply(CCtrlLLM * pLLM, VChatMessages & pMessages, std::u8string &
 	return(nPrompt);
 }
 
+//　
 int
 CLLMContext::Sample(VChatMessagesA & pMessagesA)
 {
@@ -336,6 +354,7 @@ CLLMContext::Sample(VChatMessagesA & pMessagesA)
 	return(CLLMContext::Sample(pMessages));
 }
 
+//　
 int
 CLLMContext::Sample(VChatMessagesW & pMessagesW)
 {
@@ -361,7 +380,7 @@ CLLMContext::Sample(VChatMessagesW & pMessagesW)
 	return(CLLMContext::Sample(pMessages));
 }
 
-
+//　
 int
 CLLMContext::Sample(VChatMessages & pMessages)
 {
@@ -395,6 +414,7 @@ CLLMContext::Sample(VChatMessages & pMessages)
 	llama_sampler_chain_add(pSampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
 	// 7. テキスト生成ループ
+	u8stringstream		pStream;
 	int max_tokens = 64000;
 	int i;
 	for (i = 0; i < max_tokens; ++i) {
@@ -408,13 +428,11 @@ CLLMContext::Sample(VChatMessages & pMessages)
 		}
 
 		// トークンを文字列に変換して出力
-		char	buf[128];
+		char	buf[128] = {};
 		auto n = llama_token_to_piece(vocab, new_token, buf, sizeof(buf), 0, true);
 		//auto n = llama_token_to_piece(vocab, new_token, buf, sizeof(buf), 0, false);
 		if (n > 0) {
-			if (m_pListener) {
-				m_pListener->OnToken(n, buf);
-			}
+			OnResponse(pStream, n, reinterpret_cast<const char8_t*>(buf));
 		}
 
 		// 生成されたトークンをコンテキストに入力して次を予測
@@ -423,7 +441,174 @@ CLLMContext::Sample(VChatMessages & pMessages)
 			break;
 		}
 	}
+	if (m_pListener) {
+		auto p = pStream.str();
+		auto n = pStream.str().length();
+		m_pListener->OnResponse((const int32_t)n, p.c_str());
+	}
 
 	return(0);
 }
 
+//　
+void
+CLLMContext::OnResponse(u8stringstream & pStream, const int32_t nText, const char8_t * pText)
+{
+	std::u8string	pToken = pText;
+
+	if (pToken.compare(u8"\n\n") == 0) {
+		//　改行
+		pStream << u8"\n";
+	} else {
+		pStream << pText;
+	}
+
+	return;
+}
+
+//　モデルロード進捗獲得
+bool
+model_load_progress_callback(float fProgress, void * user_data)
+{
+	auto pListener = (ILLMListener *)user_data;
+	if (pListener) {
+		auto status = pListener->OnProgress(fProgress);
+		if (status) {
+			// false を返すとロード処理を中断（キャンセル）できます
+			return(false);
+		}
+	}
+
+	return true; 
+}
+
+
+CLxLLMWorker::CLxLLMWorker() : CAxThread(L"CLxLLMWorker")
+{
+	m_pListener = nullptr;
+}
+
+CLxLLMWorker::~CLxLLMWorker()
+{
+	m_pListener = nullptr;
+}
+
+//　
+int
+CLxLLMWorker::Create(const char * pFilepath, ILLMListener * pListener)
+{
+	if (m_pEventEnd.Create(TRUE, FALSE) == false) {
+		return(-1);
+	}
+	if (m_pShutdown.Create(TRUE, FALSE) == false) {
+		return(-1);
+	}
+
+	m_pModelFilepath = pFilepath;
+	m_pListener = pListener;
+
+	if (CAxThread::Create() == false) {
+		return(-1);
+	}
+	CAxThread::Resume();
+
+	return(0);
+}
+
+//　
+void
+CLxLLMWorker::Delete(void)
+{
+	m_pModelFilepath.clear();
+	m_pListener = nullptr;
+	m_pEventEnd.Delete();
+	m_pShutdown.Delete();
+
+	return;
+}
+
+//　
+int
+CLxLLMWorker::WaitForEndWorker()
+{
+	return(m_pEventEnd.Wait());
+}
+
+int
+CLxLLMWorker::Shutdown()
+{
+	m_pShutdown.Set();
+
+	return(0);
+}
+
+//　
+uint32_t
+CLxLLMWorker::Main(void)
+{
+	auto iResult = m_pLLM.Create(m_pModelFilepath.c_str(), m_pListener);
+	if (iResult) {
+		return(iResult);
+	}
+	iResult = m_pContext.CreateContext(m_pLLM, m_pListener);
+	if (iResult) {
+		return(iResult);
+	}
+
+
+
+
+	VChatMessages	pMessages;
+
+	TChatMessage	pMessage;
+
+	pMessage.pRole = u8"user";
+	pMessage.pContent = u8"こんにちは。自己紹介をお願いできますか。";
+	pMessages.push_back(pMessage);
+
+	pMessage.pRole = u8"system";
+	pMessage.pContent = u8"プレーンテキスト形式で出力してください。";
+	pMessages.push_back(pMessage);
+
+	m_pContext.Sample(pMessages);
+
+
+
+
+
+	HANDLE	pHandles[1] = {};
+	DWORD	nHandles = _countof(pHandles);
+
+	pHandles[0] = m_pShutdown.GetHandle();
+//	pHandles[1] = m_pRender.GetEventHandle();
+//	pHandles[2] = m_pQueueAct.GetHandle();
+
+	do {
+		auto dwResult = ::WaitForMultipleObjects(nHandles, pHandles, FALSE, INFINITE);
+		if (dwResult == WAIT_FAILED) {
+			break;
+		}
+		if (dwResult == WAIT_OBJECT_0) {
+			//　スレッド終了イベント
+			break;
+		}
+		if (dwResult == WAIT_OBJECT_1) {
+			//　再生キューへ充当する空きが発生
+			//　キューとバッファーから再生データを獲得
+		}
+		if (dwResult == WAIT_OBJECT_2) {
+			//　キュー充当イベント
+			//　特別な処理はない。
+			::OutputDebugString(L"empty queue\n");
+		}
+	} while (1);
+
+
+
+	m_pContext.DeleteContext();
+	m_pLLM.Delete();
+
+	m_pEventEnd.Set();
+
+	return(0);
+}
