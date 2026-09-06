@@ -2,6 +2,7 @@
 #pragma 	once
 #include	<sstream>
 #include	<libax/AxThread.h>
+#include	<libax/AxHandler.h>
 #include	<libax/AxEvent.h>
 #include	<llama.h>
 
@@ -65,6 +66,7 @@ class	CCtrlLLM
 {
 protected:
 	llama_model *	m_pModel;
+	ILLMListener *	m_pListener;
 
 public:
 	explicit CCtrlLLM();
@@ -95,9 +97,9 @@ public:
 	int 	CreateContext(CCtrlLLM & pLLM, ILLMListener * pListener);
 	void	DeleteContext();
 
-	int 	Sample(VChatMessages & pMessages);
-	int 	Sample(VChatMessagesA & pMessages);
-	int 	Sample(VChatMessagesW & pMessages);
+	int 	Sample(VChatMessages & pMessages, u8stringstream & pStream);
+	int 	Sample(VChatMessagesA & pMessages, u8stringstream & pStream);
+	int 	Sample(VChatMessagesW & pMessages, u8stringstream & pStream);
 };
 
 //　チャット文言テンプレート
@@ -117,8 +119,8 @@ public:
 	static int32_t	Apply(CCtrlLLM * pLLM, VChatMessages & pMessages, std::u8string & pPrompt, bool add_generation_prompt=true);
 };
 
-//　LLM ワーカースレッド
-class	CLxLLMWorker : private CAxThread
+//　LLM スレッド
+class	CLxLLMThread : private CAxThread, public ILLMListener
 {
 private:
 	CAxEvent	m_pShutdown;	//　スレッド停止イベント
@@ -126,18 +128,19 @@ private:
 
 	ILLMListener *	m_pListener;
 
-//	void	OnToken(const int32_t nText, const char8_t * pText);
-
 protected:
 	CCtrlLLM		m_pLLM;
 	CLLMContext 	m_pContext;
 	std::string 	m_pModelFilepath;
 
 	uint32_t	Main(void);
+	uint32_t	Looper(void);
+
+	void	OnBegin();
 
 public:
-	explicit CLxLLMWorker();
-	virtual ~CLxLLMWorker();
+	explicit CLxLLMThread();
+	virtual ~CLxLLMThread();
 
 	int 	Create(const char * pFilepath, ILLMListener * pListener);
 	void	Delete();
@@ -145,6 +148,42 @@ public:
 	int 	WaitForEndWorker();
 	int 	Shutdown(void);
 
-//	virtual void	OnResponse(const int32_t nText, const char8_t * pText) = 0;
-//	virtual int 	OnProgress(float fValue) = 0;
+	void	OnResponse(const int32_t nText, const char8_t * pText);
+	int 	OnProgress(float fValue);
+};
+
+//　LLM ワーカーハンドラ
+class	CLxLLMWorker : public CAxHandler, private ILLMListener
+{
+private:
+	CAxEvent	m_pShutdown;	//　スレッド停止イベント
+	CAxEvent	m_pEventEnd;	//　スレッド停止完了イベント
+
+	ILLMListener *	m_pListener;
+
+protected:
+	CCtrlLLM		m_pLLM;
+	CLLMContext 	m_pContext;
+	std::string 	m_pModelFilepath;
+
+	uint32_t	Main(void);
+	uint32_t	Looper(void);
+
+	void	OnBegin();
+
+public:
+	explicit CLxLLMWorker();
+	virtual ~CLxLLMWorker();
+
+	uint32_t	Initialize();
+	int 		CreateModel(const char * pFilepath, ILLMListener * pListener);
+	void		DeleteModel();
+	void		Finalize();
+
+
+	int 	WaitForEndWorker();
+	int 	Shutdown(void);
+
+	void	OnResponse(const int32_t nText, const char8_t * pText);
+	int 	OnProgress(float fValue);
 };

@@ -38,6 +38,21 @@
     <ClCompile Include="..\..\src\liblm\liblm.cpp">
       <Filter>ソース ファイル\liblm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\liblm\CtrlLLM.cpp">
+      <Filter>ソース ファイル\liblm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\liblm\LLMContext.cpp">
+      <Filter>ソース ファイル\liblm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\liblm\ChatTemplate.cpp">
+      <Filter>ソース ファイル\liblm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\liblm\LxLLMThread.cpp">
+      <Filter>ソース ファイル\liblm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\liblm\LxLLMWorker.cpp">
+      <Filter>ソース ファイル\liblm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

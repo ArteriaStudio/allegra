@@ -92,7 +92,12 @@
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\liblm\ChatTemplate.cpp" />
+    <ClCompile Include="..\..\src\liblm\CtrlLLM.cpp" />
     <ClCompile Include="..\..\src\liblm\liblm.cpp" />
+    <ClCompile Include="..\..\src\liblm\LLMContext.cpp" />
+    <ClCompile Include="..\..\src\liblm\LxLLMThread.cpp" />
+    <ClCompile Include="..\..\src\liblm\LxLLMWorker.cpp" />
     <ClCompile Include="allegra.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
