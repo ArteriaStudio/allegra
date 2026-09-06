@@ -1,5 +1,6 @@
 ﻿// LLM操作（liblm）
 #pragma 	once
+#include	<algorithm>
 #include	<sstream>
 #include	<libax/AxThread.h>
 #include	<libax/AxHandler.h>
@@ -86,7 +87,9 @@ private:
 
 protected:
 	llama_context * 	m_pContext;
-	CCtrlLLM *	m_pLLM;
+//	llama_sampler *		m_pGrammerSampler;
+	std::string			m_pGrammar;
+	CCtrlLLM *			m_pLLM;
 
 	void	OnResponse(u8stringstream & pStream, const int32_t nText, const char8_t * pText);
 

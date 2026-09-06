@@ -1,5 +1,8 @@
 ﻿// LLM操作（liblm）
 #include	"pch.h"
+#include	<llama.h>
+#include	<json-schema-to-grammar.h>
+#include	<nlohmann/json.hpp>
 #include	<misc/libtx/txText.h>
 #include	<libux/UxTools.h>
 #include	"liblm/liblm.h"
@@ -32,6 +35,15 @@ CLLMContext::CreateContext(CCtrlLLM & pLLM, ILLMListener * pListener)
 	if (!m_pContext) {
 		return((int)ECtrlLM::FailedCreateModel);
 	}
+
+	/*
+	//　文法サンプラをロード
+	std::string		pSchema;
+	nlohmann::json	pSchemaJSON = nlohmann::json::parse(pSchema);
+	m_pGrammar = json_schema_to_grammar(pSchemaJSON);
+	*/
+
+
 	m_pListener = pListener;
 	m_pLLM = &pLLM;
 
@@ -135,6 +147,11 @@ CLLMContext::Sample(VChatMessages & pMessages, u8stringstream & pStream)
 	llama_sampler_chain_add(pSampler, llama_sampler_init_temp(0.7f));
 	llama_sampler_chain_add(pSampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
+	llama_sampler * 	pGrammerSampler = llama_sampler_init_grammar(vocab, m_pGrammar.c_str(), "root");
+	if (pGrammerSampler) {
+		llama_sampler_chain_add(pSampler, pGrammerSampler);
+	}
+
 	// 7. テキスト生成ループ
 //	u8stringstream		pStream;
 	int max_tokens = 64000;
@@ -142,7 +159,6 @@ CLLMContext::Sample(VChatMessages & pMessages, u8stringstream & pStream)
 	for (i = 0; i < max_tokens; ++i) {
 		// 次のトークンをサンプリング
 		llama_token new_token = llama_sampler_sample(pSampler, m_pContext, -1);
-		llama_sampler_accept(pSampler, new_token);
 
 		// 終了トークン (EOS) か判定
 		if (llama_vocab_is_eog(vocab, new_token)) {
@@ -156,6 +172,9 @@ CLLMContext::Sample(VChatMessages & pMessages, u8stringstream & pStream)
 		if (n > 0) {
 			OnResponse(pStream, n, reinterpret_cast<const char8_t*>(buf));
 		}
+
+		//　サンプラの状態を更新
+		llama_sampler_accept(pSampler, new_token);
 
 		// 生成されたトークンをコンテキストに入力して次を予測
 		batch = llama_batch_get_one(&new_token, 1);

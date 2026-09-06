@@ -14,6 +14,8 @@ static void 	log_callback_null(ggml_log_level level, const char * text, void * u
 #pragma comment(lib, "ggml-vulkan.lib")
 #pragma comment(lib, "D:/App/Vulkan/lib/vulkan-1.lib")
 #pragma comment(lib, "llama.lib")
+#pragma comment(lib, "llama-common.lib")
+
 
 
 
