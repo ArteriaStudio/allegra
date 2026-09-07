@@ -54,6 +54,9 @@ CLLMContext::CreateContext(CCtrlLLM & pLLM, ILLMListener * pListener)
 void
 CLLMContext::DeleteContext()
 {
+//	::llama_state_save_file(m_pContext, "",)
+
+
 	m_pListener = nullptr;
 	m_pLLM = nullptr;
 	::llama_free(m_pContext);
@@ -158,7 +161,7 @@ CLLMContext::Sample(VChatMessages & pMessages, u8stringstream & pStream)
 	int i;
 	for (i = 0; i < max_tokens; ++i) {
 		// 次のトークンをサンプリング
-		llama_token new_token = llama_sampler_sample(pSampler, m_pContext, -1);
+		llama_token 	new_token = llama_sampler_sample(pSampler, m_pContext, -1);
 
 		// 終了トークン (EOS) か判定
 		if (llama_vocab_is_eog(vocab, new_token)) {
