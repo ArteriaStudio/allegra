@@ -1,7 +1,7 @@
 ﻿// LLM操作（liblm）
 #include	"pch.h"
 #include	<llama.h>
-#include	<json-schema-to-grammar.h>
+//#include	<json-schema-to-grammar.h>
 #include	<nlohmann/json.hpp>
 #include	<misc/libtx/txText.h>
 #include	<libux/UxTools.h>
