@@ -1,11 +1,20 @@
 ﻿// LLM操作（liblm）
 #include	"pch.h"
+#include	<sstream>
 #include	<llama.h>
-//#include	<json-schema-to-grammar.h>
-#include	<nlohmann/json.hpp>
+#ifdef		ENABLE_GBNF_SCHEMA
+#pragma 	warning(push)
+#pragma 	warning(disable: 4305)
+#pragma 	warning(disable: 4244)
+#include	<common/common.h>
+#pragma 	warning(pop)
+#include	<common/sampling.h>
+#include	<common/json-schema-to-grammar.h>
+#endif	//	ENABLE_GBNF_SCHEMA
+//#include	<nlohmann/json.hpp>
 #include	<misc/libtx/txText.h>
 #include	<libux/UxTools.h>
-#include	"liblm/liblm.h"
+#include	<liblm/liblm.h>
 
 
 
@@ -36,12 +45,88 @@ CLLMContext::CreateContext(CCtrlLLM & pLLM, ILLMListener * pListener)
 		return((int)ECtrlLM::FailedCreateModel);
 	}
 
-	/*
+#ifdef		ENABLE_GBNF_SCHEMA
 	//　文法サンプラをロード
-	std::string		pSchema;
-	nlohmann::json	pSchemaJSON = nlohmann::json::parse(pSchema);
-	m_pGrammar = json_schema_to_grammar(pSchemaJSON);
-	*/
+/*
+	std::string 	pSchema = R"({
+		"type": "object",
+			"properties": {
+			"name": { "type": "string" },
+			"age": { "type": "integer" },
+			"skills": {
+			"type": "array",
+			"items": { "type": "string" }
+			}
+		},
+			"required": ["name", "age"]
+	})";
+*/
+	std::string 	pSchema_JSON = R"({"id": 1,"name": "Ronova","is_active": true})";
+
+
+	pSchema_JSON =R"({
+	"type": "array",
+	"items": {
+		"type": "object",
+		"properties": {
+			"name": {
+				"type": "string",
+				"minLength": 1,
+				"maxLength": 100
+			},
+			"age": {
+				"type": "integer",
+				"minimum": 0,
+				"maximum": 150
+			}
+		},
+		"required": ["name", "age"],
+		"additionalProperties": false
+	},
+	"minItems": 10,
+	"maxItems": 100
+  })";
+
+
+
+	pSchema_JSON = R"({"type": "integer","minimum": 1})";
+	pSchema_JSON = R"({
+	"type": "object",
+	"properties": {
+		"value": {
+			"type": "integer"
+		}
+	},
+	"required": ["value"]
+})";
+
+
+	try {
+
+		// 空オブジェクトの場合
+//		auto j1 = common_json::parse(R"({})");
+		// 空配列の場合
+//		auto j2 = common_json::parse(R"([])");
+		//	nlohmann::json	pSchemaJSON = nlohmann::json::parse(pSchema);
+		//	auto pSchemaJSON = json_schema_to_grammar(pSchema);
+		//common_json	pSchema = pSchema_JSON;
+		//common_json pSchema = common_json::parse(reinterpret_cast<const char *>(pSchema_JSON.c_str()));
+
+		common_json 	pSchema = common_json::parse(pSchema_JSON);
+		m_pGrammar = ::json_schema_to_grammar(pSchema, true);
+	}
+	catch (const std::exception& e) {
+		// JSON パースエラーや内部例外を補獲
+		std::stringstream	pOut;
+		pOut << "Caught exception: " << e.what() << std::endl;
+		::OutputDebugStringA(pOut.str().c_str());
+	}
+	catch (...) {
+		std::stringstream	pOut;
+		pOut << "Caught unknown exception" << std::endl;
+		::OutputDebugStringA(pOut.str().c_str());
+	}
+#endif	//	ENABLE_GBNF_SCHEMA
 
 
 	m_pListener = pListener;
@@ -117,7 +202,7 @@ CLLMContext::Sample(VChatMessagesW & pMessagesW, u8stringstream & pStream)
 	return(CLLMContext::Sample(pMessages, pStream));
 }
 
-//　
+//　LLM クエリー
 int
 CLLMContext::Sample(VChatMessages & pMessages, u8stringstream & pStream)
 {
@@ -139,21 +224,30 @@ CLLMContext::Sample(VChatMessages & pMessages, u8stringstream & pStream)
 	}
 	tokens.resize(n_tokens);
 
+	// 6. サンプラーの初期化
+	auto pSampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
+	llama_sampler_chain_add(pSampler, llama_sampler_init_temp(0.7f));
+	llama_sampler_chain_add(pSampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+
+#ifdef		ENABLE_GBNF_SCHEMA
+	llama_sampler * 	pGrammerSampler = llama_sampler_init_grammar(vocab, m_pGrammar.c_str(), "root");
+	if (pGrammerSampler) {
+		llama_sampler_chain_add(pSampler, pGrammerSampler);
+	}
+#endif	//	ENABLE_GBNF_SCHEMA
+
 	// 5. プロンプトの評価 (KVキャッシュへの格納)
 	llama_batch batch = llama_batch_get_one(tokens.data(), (int32_t)tokens.size());
 	if (llama_decode(m_pContext, batch) != 0) {
 		return 1;
 	}
 
-	// 6. サンプラーの初期化
-	auto pSampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
-	llama_sampler_chain_add(pSampler, llama_sampler_init_temp(0.7f));
-	llama_sampler_chain_add(pSampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
-
-	llama_sampler * 	pGrammerSampler = llama_sampler_init_grammar(vocab, m_pGrammar.c_str(), "root");
-	if (pGrammerSampler) {
-		llama_sampler_chain_add(pSampler, pGrammerSampler);
+	/*
+	//　サンプラの状態を更新
+	for (int i = 0; i < n_tokens; ++i) {
+		llama_sampler_accept(pSampler, tokens[i]);
 	}
+	*/
 
 	// 7. テキスト生成ループ
 //	u8stringstream		pStream;
@@ -161,30 +255,46 @@ CLLMContext::Sample(VChatMessages & pMessages, u8stringstream & pStream)
 	int i;
 	for (i = 0; i < max_tokens; ++i) {
 		// 次のトークンをサンプリング
-		llama_token 	new_token = llama_sampler_sample(pSampler, m_pContext, -1);
+		try {
+			llama_token 	new_token = llama_sampler_sample(pSampler, m_pContext, -1);
 
-		// 終了トークン (EOS) か判定
-		if (llama_vocab_is_eog(vocab, new_token)) {
-			break;
+			// 終了トークン (EOS) か判定
+			if (llama_vocab_is_eog(vocab, new_token)) {
+				break;
+			}
+
+			// トークンを文字列に変換して出力
+			char	buf[128] = {};
+			auto n = llama_token_to_piece(vocab, new_token, buf, sizeof(buf), 0, true);
+			//auto n = llama_token_to_piece(vocab, new_token, buf, sizeof(buf), 0, false);
+			if (n > 0) {
+				OnResponse(pStream, n, reinterpret_cast<const char8_t*>(buf));
+			}
+
+			//　サンプラの状態を更新
+			llama_sampler_accept(pSampler, new_token);
+
+			// 生成されたトークンをコンテキストに入力して次を予測
+			batch = llama_batch_get_one(&new_token, 1);
+			if (llama_decode(m_pContext, batch) != 0) {
+				break;
+			}
 		}
-
-		// トークンを文字列に変換して出力
-		char	buf[128] = {};
-		auto n = llama_token_to_piece(vocab, new_token, buf, sizeof(buf), 0, true);
-		//auto n = llama_token_to_piece(vocab, new_token, buf, sizeof(buf), 0, false);
-		if (n > 0) {
-			OnResponse(pStream, n, reinterpret_cast<const char8_t*>(buf));
+		catch (const std::exception& e) {
+			// JSON パースエラーや内部例外を補獲
+			std::stringstream	pOut;
+			pOut << "Caught exception: " << e.what() << std::endl;
+			::OutputDebugStringA(pOut.str().c_str());
 		}
-
-		//　サンプラの状態を更新
-		llama_sampler_accept(pSampler, new_token);
-
-		// 生成されたトークンをコンテキストに入力して次を予測
-		batch = llama_batch_get_one(&new_token, 1);
-		if (llama_decode(m_pContext, batch) != 0) {
-			break;
+		catch (...) {
+			std::stringstream	pOut;
+			pOut << "Caught unknown exception" << std::endl;
+			::OutputDebugStringA(pOut.str().c_str());
 		}
 	}
+	llama_decode(p)
+
+
 	if (m_pListener) {
 		auto p = pStream.str();
 		auto n = pStream.str().length();

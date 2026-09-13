@@ -87,8 +87,10 @@ private:
 
 protected:
 	llama_context * 	m_pContext;
+#ifdef		ENABLE_GBNF_SCHEMA
 //	llama_sampler *		m_pGrammerSampler;
 	std::string			m_pGrammar;
+#endif	//	ENABLE_GBNF_SCHEMA
 	CCtrlLLM *			m_pLLM;
 
 	void	OnResponse(u8stringstream & pStream, const int32_t nText, const char8_t * pText);

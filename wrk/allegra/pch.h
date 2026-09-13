@@ -7,12 +7,18 @@
 #ifndef PCH_H
 #define PCH_H
 
+//　Windows.hでmin()/max()マクロの宣言を抑止
+#ifndef 	NOMINMAX
+#define 	NOMINMAX
+#endif	//	NOMINMAX
+
 #define		WIN32_LEAN_AND_MEAN
 #include	<Windows.h>
 #include	<minwindef.h>
 
 #include	<assert.h>
 
+#include	<algorithm>
 #include	<string>
 #include	<vector>
 #include	<format>
