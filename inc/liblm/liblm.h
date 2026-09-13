@@ -1,4 +1,4 @@
-﻿// LLM操作（liblm）
+﻿// LLM 操作（liblm.h）
 #pragma 	once
 #include	<algorithm>
 #include	<sstream>
@@ -16,6 +16,7 @@ enum class	ECtrlLM : int
 	FailedCreateModel,
 };
 
+//　
 using u8stringstream = std::basic_stringstream<char8_t>;
 
 //　LLM 対話メッセージ
@@ -56,10 +57,8 @@ private:
 protected:
 
 public:
-	int 	Initialize();
-	void	Finalize();
-
-	static CLlama * 	GetInstance(void);
+	static int		Initialize();
+	static void 	Finalize();
 };
 
 //　LLMモデル

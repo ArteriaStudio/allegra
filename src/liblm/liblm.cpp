@@ -54,11 +54,3 @@ CLlama::Finalize()
 
 	return;
 }
-
-CLlama *
-CLlama::GetInstance(void)
-{
-static CLlama	pInstance;
-
-	return(&pInstance);
-}

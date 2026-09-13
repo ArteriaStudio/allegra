@@ -14,11 +14,10 @@
 //#include	<nlohmann/json.hpp>
 #include	<misc/libtx/txText.h>
 #include	<libux/UxTools.h>
-#include	<liblm/liblm.h>
+#include	"liblm/liblm.h"
 
 
-
-
+//　
 CLLMContext::CLLMContext()
 {
 	m_pContext = nullptr;
@@ -47,71 +46,8 @@ CLLMContext::CreateContext(CCtrlLLM & pLLM, ILLMListener * pListener)
 
 #ifdef		ENABLE_GBNF_SCHEMA
 	//　文法サンプラをロード
-/*
-	std::string 	pSchema = R"({
-		"type": "object",
-			"properties": {
-			"name": { "type": "string" },
-			"age": { "type": "integer" },
-			"skills": {
-			"type": "array",
-			"items": { "type": "string" }
-			}
-		},
-			"required": ["name", "age"]
-	})";
-*/
 	std::string 	pSchema_JSON = R"({"id": 1,"name": "Ronova","is_active": true})";
-
-
-	pSchema_JSON =R"({
-	"type": "array",
-	"items": {
-		"type": "object",
-		"properties": {
-			"name": {
-				"type": "string",
-				"minLength": 1,
-				"maxLength": 100
-			},
-			"age": {
-				"type": "integer",
-				"minimum": 0,
-				"maximum": 150
-			}
-		},
-		"required": ["name", "age"],
-		"additionalProperties": false
-	},
-	"minItems": 10,
-	"maxItems": 100
-  })";
-
-
-
-	pSchema_JSON = R"({"type": "integer","minimum": 1})";
-	pSchema_JSON = R"({
-	"type": "object",
-	"properties": {
-		"value": {
-			"type": "integer"
-		}
-	},
-	"required": ["value"]
-})";
-
-
 	try {
-
-		// 空オブジェクトの場合
-//		auto j1 = common_json::parse(R"({})");
-		// 空配列の場合
-//		auto j2 = common_json::parse(R"([])");
-		//	nlohmann::json	pSchemaJSON = nlohmann::json::parse(pSchema);
-		//	auto pSchemaJSON = json_schema_to_grammar(pSchema);
-		//common_json	pSchema = pSchema_JSON;
-		//common_json pSchema = common_json::parse(reinterpret_cast<const char *>(pSchema_JSON.c_str()));
-
 		common_json 	pSchema = common_json::parse(pSchema_JSON);
 		m_pGrammar = ::json_schema_to_grammar(pSchema, true);
 	}
@@ -128,7 +64,6 @@ CLLMContext::CreateContext(CCtrlLLM & pLLM, ILLMListener * pListener)
 	}
 #endif	//	ENABLE_GBNF_SCHEMA
 
-
 	m_pListener = pListener;
 	m_pLLM = &pLLM;
 
@@ -139,9 +74,6 @@ CLLMContext::CreateContext(CCtrlLLM & pLLM, ILLMListener * pListener)
 void
 CLLMContext::DeleteContext()
 {
-//	::llama_state_save_file(m_pContext, "",)
-
-
 	m_pListener = nullptr;
 	m_pLLM = nullptr;
 	::llama_free(m_pContext);
@@ -242,15 +174,7 @@ CLLMContext::Sample(VChatMessages & pMessages, u8stringstream & pStream)
 		return 1;
 	}
 
-	/*
-	//　サンプラの状態を更新
-	for (int i = 0; i < n_tokens; ++i) {
-		llama_sampler_accept(pSampler, tokens[i]);
-	}
-	*/
-
 	// 7. テキスト生成ループ
-//	u8stringstream		pStream;
 	int max_tokens = 64000;
 	int i;
 	for (i = 0; i < max_tokens; ++i) {
@@ -292,8 +216,6 @@ CLLMContext::Sample(VChatMessages & pMessages, u8stringstream & pStream)
 			::OutputDebugStringA(pOut.str().c_str());
 		}
 	}
-	llama_decode(p)
-
 
 	if (m_pListener) {
 		auto p = pStream.str();
